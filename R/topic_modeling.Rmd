@@ -1,0 +1,122 @@
+---
+title: "Pre-processing"
+author: "Selena Scott"
+date: "12/12/21"
+output: pdf_document
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE, tidy = TRUE, tidy.opts = list(width.cutoff=60))
+library (dplyr)
+library (stringr)
+library (tm)
+library (topicmodels)
+library (kableExtra)
+library (textmineR)
+library (ggplot2)
+library (reshape2)
+library (tidytext)
+library(readr)
+```
+
+# Topic Modeling
+## 1) Prepare the Data
+```{r, eval = F}
+# the following chunk of code is not run b/c it takes a long time, 
+# the results are saved and loaded into the next chunk
+data = read_csv("../Answers.csv")
+
+# first column has to be named "doc_id", second column has to be named "text"
+data$doc_id = data$Id
+data$text = data$Body
+data = data[,c(8, 9, 2:6)]
+
+# make a corpus (data structure for text data, need it to be in this form to make a document-term matrix)
+corpus = tm::Corpus(DataframeSource(as.data.frame(data)))
+
+english_stopwords = readLines("https://slcladal.github.io/resources/stopwords_en.txt", encoding = "UTF-8")
+
+processedCorpus = tm_map(corpus, content_transformer(tolower))  # make text lowercase
+processedCorpus = tm_map(processedCorpus, removePunctuation, preserve_intra_word_dashes = TRUE)  # remove punctuation
+processedCorpus = tm_map(processedCorpus, removeWords, english_stopwords)  # remove common stopwords
+processedCorpus = tm_map(processedCorpus, removeNumbers)  # remove numbers
+processedCorpus = tm_map(processedCorpus, stemDocument, language = "en")  # only keep bases of words
+processedCorpus = tm_map(processedCorpus, stripWhitespace)  # remove extra whitespace
+
+# make a document-term matrix (data structure for text data, need it to be in this form for model)
+ndocs = length(corpus)
+minimumFrequency = ndocs * 0.02  # include words appearing in at least 2% of documents
+maximumFrequency = ndocs * 0.8  # remove words appearing in more than 80% of documents
+
+DTM = tm::DocumentTermMatrix(processedCorpus, control = list(bounds = list(global = c(minimumFrequency, maximumFrequency))))
+save(DTM, data, processedCorpus, file = "DTM_preprocessing.dta")
+```
+
+```{r}
+load("preprocessing/DTM_preprocessing.dta")
+dim(DTM)  # 250788 documents, 220 terms
+```
+
+Run an initial model to see if extra cleaning is needed.
+```{r}
+sel_idx = slam::row_sums(DTM) > 0  # remove documents that don't have any words
+DTM = DTM[sel_idx, ]
+
+K = 8  # set an arbitrary number of topics (attempted K = 20 > 15 > 10 > 9 > 8)
+set.seed(9161)  # set random number generator seed
+
+# the following line takes a while to run, the results are saved
+# compute the LDA model, inference via 500 iterations of Gibbs sampling
+#topicModel = LDA(DTM, K, method = "Gibbs", control = list(iter = 500, verbose = 25))
+#save(topicModel, file = "topicModel_preprocessing.dta")
+
+load("preprocessing/topicModel_preprocessing.dta")
+
+top15termsPerTopic = terms(topicModel, 15)  # top 15 words per topic
+topicNames = apply(top15termsPerTopic, 2, paste, collapse = " ")
+topicNames %>% kable(col.names = c("terms"))
+```
+
+## 2) Rename Topics
+```{r}
+topicNames = data.frame(terms = topicNames)
+
+topicNames$topic_name = c("function definitions and calls",
+                          "dates and times",
+                          "installing and loading packages",
+                          "vectors",
+                          "strings",
+                          "lists and variables",
+                          "plots and figures",
+                          "data frames and matrices")
+  
+kable(topicNames)
+```
+
+## 3) Add Topics to Data
+```{r, eval = F}
+# topic proportions
+tmResult = topicmodels::posterior(topicModel)
+theta = as.data.frame(tmResult$topics)
+theta$doc_id = as.numeric(dimnames(theta)[[1]])
+
+# add topic proportions to data
+data = left_join(data, theta, by = "doc_id")
+
+# add main topic variable to data
+data$main_topic = max.col(as.matrix((data[, 8:15])), ties.method = "first")
+
+# add clean text
+temp = processedCorpus$content
+temp = as.data.frame(cbind(names(temp), temp))
+names(temp) = c("doc_id", "clean_text")
+temp$doc_id = as.numeric(data$doc_id)
+data = left_join(data, temp, by = "doc_id")
+
+# add variables for number of words in text
+data$n_words_original = lengths(gregexpr("[A-z]\\W+", data$text)) + 1L
+data$n_words_clean = lengths(gregexpr("[A-z]\\W+", data$clean_text)) + 1L
+
+# write to CSV file
+write.csv(data[, c(1:7, 16, 8:15, 18:19, 17)], file = "answers_topics.csv", row.names = FALSE)
+```
