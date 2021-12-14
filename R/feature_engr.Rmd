@@ -1,5 +1,5 @@
 ---
-title: "EDA SRH"
+title: "Feature Engineering"
 author: "Spencer Haupert"
 date: "12/11/2021"
 output: pdf_document
@@ -9,6 +9,8 @@ Libraries
 ```{r}
 library(tidyverse) #tabular data manipulation
 library(tm) #text manipulation
+library(cranlogs) # get top packages
+library(lubridate) #date manipulation
 ```
 
 
@@ -21,7 +23,12 @@ tags = read_csv("../../project_data/Tags.csv")
 
 #feature df
 features = answers %>%
-  select(Id, Score, IsAcceptedAnswer)
+  select(Id, ParentId, OwnerUserId, Score, IsAcceptedAnswer) %>%
+  mutate(answer_id = Id,
+         question_id = ParentId,
+         answerer_id = OwnerUserId,
+         answer_score = Score) %>%
+  select(answer_id, question_id, answerer_id, answer_score, IsAcceptedAnswer)
 ```
 
 Features derived from questions
@@ -49,6 +56,19 @@ features = answers %>%
   select(elapsed_time) %>%
   cbind(features,.)
 
+
+#asker avg score
+features = answers %>%
+  select(ParentId) %>%
+  left_join(., questions, by = c("ParentId" = "Id")) %>%
+  select(OwnerUserId, Score) %>%
+  group_by(OwnerUserId) %>%
+  mutate(asker_avg_score = ifelse(is.na(OwnerUserId), Score, mean(Score))) %>%
+  ungroup() %>%
+  select(asker_avg_score) %>%
+  cbind(features,.)
+
+
 ### TEXT-BASED FEATURES ###
 
 ### from title
@@ -72,7 +92,7 @@ features = answers %>%
   left_join(., questions, by = c("ParentId" = "Id")) %>%
   select(Title) %>% 
   mutate(Title = paste0(" ", Title, " ")) %>%
-  mutate(title_has_pop_packages = str_detect(Title, paste0("(?i)[[:space:]]+(", pop_packages_cat,")[[:space:]()?\\.!\\/:,;']+"))) %>%
+  mutate(title_has_pop_packages = str_detect(Title, paste0("(?i)(", pop_packages_cat,")"))) %>%
   select(title_has_pop_packages) %>%
   cbind(features,.)
 
@@ -85,20 +105,20 @@ features = answers %>%
   left_join(., questions, by = c("ParentId" = "Id")) %>%
   select(Title) %>% 
   mutate(Title = paste0(" ", Title, " ")) %>%
-  mutate(title_has_tidyverse_packages = str_detect(Title, paste0("(?i)[[:space:]]+(", tidyverse_packages_cat,")[[:space:]()?\\.!\\/:,;']+"))) %>%
+  mutate(title_has_tidyverse_packages = str_detect(Title, paste0("(?i)(", tidyverse_packages_cat,")"))) %>%
   select(title_has_tidyverse_packages) %>%
   cbind(features,.)
 
 #include data.table in title
 dt_packages = c("data.table", "data[[:space:]]table")
-dt_packages_cat = paste(tidyverse_packages, collapse = "|")
+dt_packages_cat = paste(dt_packages, collapse = "|")
 
 features = answers %>%
   select(ParentId) %>%
   left_join(., questions, by = c("ParentId" = "Id")) %>%
   select(Title) %>% 
   mutate(Title = paste0(" ", Title, " ")) %>%
-  mutate(title_has_dt_packages = str_detect(Title, paste0("(?i)[[:space:]]+(", dt_packages_cat,")[[:space:]()?\\.!\\/:,;']+"))) %>%
+  mutate(title_has_dt_packages = str_detect(Title, paste0("(?i)(", dt_packages_cat,")"))) %>%
   select(title_has_dt_packages) %>%
   cbind(features,.)
 
@@ -116,12 +136,93 @@ features = answers %>%
 
 ### from body of text
 
+#include popular package in body
+
+features = answers %>%
+  select(ParentId) %>%
+  left_join(., questions, by = c("ParentId" = "Id")) %>%
+  select(Body) %>% 
+  mutate(Body = paste0(" ", Body, " ")) %>%
+  mutate(question_body_has_pop_packages = str_detect(Body, paste0("(?i)(", pop_packages_cat,")"))) %>%
+  select(question_body_has_pop_packages) %>%
+  cbind(features,.)
+
+#include tidyverse in body
+
+features = answers %>%
+  select(ParentId) %>%
+  left_join(., questions, by = c("ParentId" = "Id")) %>%
+  select(Body) %>% 
+  mutate(Body = paste0(" ", Body, " ")) %>%
+  mutate(question_body_has_tidyverse_packages = str_detect(Body, paste0("(?i)(", tidyverse_packages_cat,")"))) %>%
+  select(question_body_has_tidyverse_packages) %>%
+  cbind(features,.)
+
+#include data.table in body
+
+features = answers %>%
+  select(ParentId) %>%
+  left_join(., questions, by = c("ParentId" = "Id")) %>%
+  select(Body) %>% 
+  mutate(Body = paste0(" ", Body, " ")) %>%
+  mutate(question_body_has_dt_packages = str_detect(Body, paste0("(?i)(", dt_packages_cat,")"))) %>%
+  select(question_body_has_dt_packages) %>%
+  cbind(features,.)
 
   
+#number of words in body
+features = answers %>%
+  select(ParentId) %>%
+  left_join(., questions, by = c("ParentId" = "Id")) %>%
+  select(Body) %>%
+  mutate(nwords_question_body = str_length(Body)) %>%
+  select(nwords_question_body) %>%
+  cbind(features,.)
 
 
+#body includes code
 
+features = answers %>%
+  select(ParentId) %>%
+  left_join(., questions, by = c("ParentId" = "Id")) %>%
+  select(Body) %>% 
+  mutate(Body = paste0(" ", Body, " ")) %>%
+  mutate(question_body_has_code = str_detect(Body, "<code>")) %>%
+  select(question_body_has_code) %>%
+  cbind(features,.)
+
+#number of code chunks in body
+
+features = answers %>%
+  select(ParentId) %>%
+  left_join(., questions, by = c("ParentId" = "Id")) %>%
+  select(Body) %>% 
+  mutate(Body = paste0(" ", Body, " ")) %>%
+  mutate(ncode_chunks_question_body = str_count(Body, "<code>")) %>%
+  select(ncode_chunks_question_body) %>%
+  cbind(features,.)
   
+#body includes image
+
+features = answers %>%
+  select(ParentId) %>%
+  left_join(., questions, by = c("ParentId" = "Id")) %>%
+  select(Body) %>% 
+  mutate(Body = paste0(" ", Body, " ")) %>%
+  mutate(question_body_has_image = str_detect(Body, "<img")) %>%
+  select(question_body_has_image) %>%
+  cbind(features,.)
+
+#body includes link
+
+features = answers %>%
+  select(ParentId) %>%
+  left_join(., questions, by = c("ParentId" = "Id")) %>%
+  select(Body) %>% 
+  mutate(Body = paste0(" ", Body, " ")) %>%
+  mutate(question_body_has_link = str_detect(Body, "<a href")) %>%
+  select(question_body_has_link) %>%
+  cbind(features,.)
   
 ```
 
@@ -129,6 +230,8 @@ features = answers %>%
 Features derived from answers
 
 ```{r}
+### BASIC FEATURES ###
+
 #Days since a beginning of 2008
 features = answers %>%
   mutate(answer_time = CreationDate - lubridate::ymd_hms("2008-01-01 00:00:00")) %>%
@@ -136,19 +239,128 @@ features = answers %>%
   mutate(answer_time = as.numeric(answer_time)) %>%
   cbind(features,.)
 
-# packages used
+#answerer avg score
+features = answers %>%
+  select(OwnerUserId, Score) %>%
+  group_by(OwnerUserId) %>%
+  mutate(answerer_avg_score = ifelse(is.na(OwnerUserId), Score, mean(Score))) %>%
+  ungroup() %>%
+  select(answerer_avg_score) %>%
+  cbind(features,.)
+
+### TEXT-BASED FEATURES ###
+
+#include popular package in body
+
+features = answers %>%
+  select(Body) %>% 
+  mutate(Body = paste0(" ", Body, " ")) %>%
+  mutate(answer_body_has_pop_packages = str_detect(Body, paste0("(?i)(", pop_packages_cat,")"))) %>%
+  select(answer_body_has_pop_packages) %>%
+  cbind(features,.)
+
+#include tidyverse in body
+
+features = answers %>%
+  select(Body) %>% 
+  mutate(Body = paste0(" ", Body, " ")) %>%
+  mutate(answer_body_has_tidyverse_packages = str_detect(Body, paste0("(?i)(", tidyverse_packages_cat,")"))) %>%
+  select(answer_body_has_tidyverse_packages) %>%
+  cbind(features,.)
+
+#include data.table in body
+
+features = answers %>%
+  select(Body) %>% 
+  mutate(Body = paste0(" ", Body, " ")) %>%
+  mutate(answer_body_has_dt_packages = str_detect(Body, paste0("(?i)(", dt_packages_cat,")"))) %>%
+  select(answer_body_has_dt_packages) %>%
+  cbind(features,.)
+
+  
+#number of words in body
+features = answers %>%
+  select(Body) %>%
+  mutate(nwords_answer_body = str_length(Body)) %>%
+  select(nwords_answer_body) %>%
+  cbind(features,.)
+
+
+#body includes code
+
+features = answers %>%
+  select(Body) %>% 
+  mutate(Body = paste0(" ", Body, " ")) %>%
+  mutate(answer_body_has_code = str_detect(Body, "<code>")) %>%
+  select(answer_body_has_code) %>%
+  cbind(features,.)
+
+#number of code chunks in body
+
+features = answers %>%
+  select(Body) %>% 
+  mutate(Body = paste0(" ", Body, " ")) %>%
+  mutate(ncode_chunks_answer_body = str_count(Body, "<code>")) %>%
+  select(ncode_chunks_answer_body) %>%
+  cbind(features,.)
+  
+#body includes image
+
+features = answers %>%
+  select(Body) %>% 
+  mutate(Body = paste0(" ", Body, " ")) %>%
+  mutate(answer_body_has_image = str_detect(Body, "<img")) %>%
+  select(answer_body_has_image) %>%
+  cbind(features,.)
+
+#body includes link
+
+features = answers %>%
+  select(Body) %>% 
+  mutate(Body = paste0(" ", Body, " ")) %>%
+  mutate(answer_body_has_link = str_detect(Body, "<a href")) %>%
+  select(answer_body_has_link) %>%
+  cbind(features,.)
+
+#body includes headers
+headers = c("<h1>","<h2>","<h3>","<h4>","<h5>","<h6>")
+headers_cat = paste(headers, collapse = "|")
+
+features = answers %>%
+  select(Body) %>% 
+  mutate(Body = paste0(" ", Body, " ")) %>%
+  mutate(answer_body_has_headers = str_detect(Body, paste0("(?i)(", headers_cat,")"))) %>%
+  select(answer_body_has_headers) %>%
+  cbind(features,.)
+
+#body includes lists
+lists = c("<ol","<ul")
+lists_cat = paste(lists, collapse = "|")
+
+features = answers %>%
+  select(Body) %>% 
+  mutate(Body = paste0(" ", Body, " ")) %>%
+  mutate(answer_body_has_lists = str_detect(Body, paste0("(?i)(", lists_cat,")"))) %>%
+  select(answer_body_has_lists) %>%
+  cbind(features,.)
+
+#body includes boldface
+bold = c("<b>","<strong>")
+bold_cat = paste(bold, collapse = "|")
+
+features = answers %>%
+  select(Body) %>% 
+  mutate(Body = paste0(" ", Body, " ")) %>%
+  mutate(answer_body_has_bold = str_detect(Body, paste0("(?i)(", bold_cat,")"))) %>%
+  select(answer_body_has_bold) %>%
+  cbind(features,.)
+  
 ```
 
-
-Features derived from tags
-
-```{r}
-
-```
 
 
 Save result
 ```{r}
-save(features, file = "../../project_data/features.RData")
+save(features, file = "preprocessing/features.RData")
 ```
 
