@@ -363,6 +363,6 @@ features = answers %>%
 
 Save result
 ```{r}
-save(features, file = "preprocessing/features.RData")
+save(features, file = "data/features.RData")
 ```
 

@@ -1,0 +1,50 @@
+library (dplyr)
+library (stringr)
+library (tm)
+library (topicmodels)
+library (kableExtra)
+library (textmineR)
+library (ggplot2)
+library (reshape2)
+library(readr)
+
+load("DTM_preprocessing.dta")
+
+# coherence score
+k_list = seq(2, 20, 2)
+dtm = CreateDtm(data$text, doc_names = data$doc_id, ngram_window = c(1, 1))
+tf = TermDocFreq(dtm = dtm)
+vocabulary = tf$term[tf$term_freq > 1 & tf$doc_freq < nrow(dtm)/2]
+model_dir = paste0("models_", digest::digest(vocabulary, algo = "sha1"))
+
+if(!dir.exists(model_dir)) {dir.create(model_dir)}
+
+model_list = lapply(X = k_list, FUN = function(k) {
+  filename = file.path(model_dir, paste0(k, "_topics.rda"))
+  if(!file.exists(filename)) {
+    m = FitLdaModel(dtm = dtm, k = k, iterations = 250)
+    m$k = k
+    m$coherence = CalcProbCoherence(phi = m$phi, dtm = dtm, M = 5)
+    save(m, file = filename)
+  } else {
+    load(filename)
+  }
+  m
+})
+
+# model tuning, choosing the best model
+coherence_mat = data.frame(k = sapply(model_list, function(x) nrow(x$phi)),
+                           coherence = sapply(model_list, function(x) mean(x$coherence)),
+                           stringsAsFactors = FALSE)
+save(coherence_mat, file = "coherence.RData")
+
+load("coherence.RData")
+
+ggplot(data = coherence_mat) +
+  geom_point(aes(x = k, y = coherence)) +
+  geom_line(aes(x = k, y = coherence)) +
+  ggtitle("Best Topic by Coherence Score") + 
+  scale_x_continuous(breaks = seq(1, 50, 2)) +
+  ylab("Coherence")
+
+ggsave(file = "coherence.png", plot = last_plot(), width = 11, h = 6, units = "in")

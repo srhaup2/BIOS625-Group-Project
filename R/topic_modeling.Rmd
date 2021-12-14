@@ -117,6 +117,13 @@ data = left_join(data, temp, by = "doc_id")
 data$n_words_original = lengths(gregexpr("[A-z]\\W+", data$text)) + 1L
 data$n_words_clean = lengths(gregexpr("[A-z]\\W+", data$clean_text)) + 1L
 
-# write to CSV file
-write.csv(data[, c(1:7, 16, 8:15, 18:19, 17)], file = "answers_topics.csv", row.names = FALSE)
+# re-order columns
+data = data[, c(1:7, 16, 8:15, 18:19, 17)]
+
+# select columns
+topics = data[, c(1, 8:18)]
+
+# save data frames
+save(topics, file = "data/topics.RData")
+#save(data, file = "data/answers_topics.RData")
 ```
