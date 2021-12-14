@@ -5,3 +5,150 @@ date: "12/11/2021"
 output: pdf_document
 ---
 
+Libraries
+```{r}
+library(tidyverse) #tabular data manipulation
+library(tm) #text manipulation
+```
+
+
+Read in data
+
+```{r}
+answers = read_csv("../../project_data/Answers.csv")
+questions = read_csv("../../project_data/Questions.csv")
+tags = read_csv("../../project_data/Tags.csv")
+
+#feature df
+features = answers %>%
+  select(Id, Score, IsAcceptedAnswer)
+```
+
+Features derived from questions
+
+```{r}
+### BASIC FEATURES ###
+
+# question score
+features = answers %>%
+  select(ParentId) %>%
+  left_join(., questions, by = c("ParentId" = "Id")) %>%
+  select(Score) %>%
+  mutate(question_score = Score) %>%
+  select(question_score) %>%
+  cbind(features,.)
+
+#date between question and answer
+features = answers %>%
+  select(ParentId, CreationDate) %>%
+  mutate(AnswerDate = CreationDate) %>%
+  select(ParentId, AnswerDate) %>%
+  left_join(., questions, by = c("ParentId" = "Id")) %>%
+  select(ParentId, AnswerDate, CreationDate) %>%
+  mutate(elapsed_time = AnswerDate - CreationDate) %>%
+  select(elapsed_time) %>%
+  cbind(features,.)
+
+### TEXT-BASED FEATURES ###
+
+### from title
+
+#includes R in title
+features = answers %>%
+  select(ParentId) %>%
+  left_join(., questions, by = c("ParentId" = "Id")) %>%
+  select(Title) %>% 
+  mutate(Title = paste0(" ", Title, " ")) %>%
+  mutate(title_has_R = str_detect(Title, "[[:space:]]+[Rr][[:space:]()?\\.!\\/:,;']+")) %>%
+  select(title_has_R) %>%
+  cbind(features,.)
+  
+#include popular package in title
+pop_packages = cranlogs::cran_top_downloads(when = "last-month", count = 100)$package
+pop_packages_cat = paste(pop_packages, collapse = "|")
+
+features = answers %>%
+  select(ParentId) %>%
+  left_join(., questions, by = c("ParentId" = "Id")) %>%
+  select(Title) %>% 
+  mutate(Title = paste0(" ", Title, " ")) %>%
+  mutate(title_has_pop_packages = str_detect(Title, paste0("(?i)[[:space:]]+(", pop_packages_cat,")[[:space:]()?\\.!\\/:,;']+"))) %>%
+  select(title_has_pop_packages) %>%
+  cbind(features,.)
+
+#include tidyverse in title
+tidyverse_packages = c("tidyverse", "ggplot2", "dplyr", "tidyr", "readr", "purrr", "tibble", "stringr", "forcats")
+tidyverse_packages_cat = paste(tidyverse_packages, collapse = "|")
+
+features = answers %>%
+  select(ParentId) %>%
+  left_join(., questions, by = c("ParentId" = "Id")) %>%
+  select(Title) %>% 
+  mutate(Title = paste0(" ", Title, " ")) %>%
+  mutate(title_has_tidyverse_packages = str_detect(Title, paste0("(?i)[[:space:]]+(", tidyverse_packages_cat,")[[:space:]()?\\.!\\/:,;']+"))) %>%
+  select(title_has_tidyverse_packages) %>%
+  cbind(features,.)
+
+#include data.table in title
+dt_packages = c("data.table", "data[[:space:]]table")
+dt_packages_cat = paste(tidyverse_packages, collapse = "|")
+
+features = answers %>%
+  select(ParentId) %>%
+  left_join(., questions, by = c("ParentId" = "Id")) %>%
+  select(Title) %>% 
+  mutate(Title = paste0(" ", Title, " ")) %>%
+  mutate(title_has_dt_packages = str_detect(Title, paste0("(?i)[[:space:]]+(", dt_packages_cat,")[[:space:]()?\\.!\\/:,;']+"))) %>%
+  select(title_has_dt_packages) %>%
+  cbind(features,.)
+
+  
+#number of words in title
+features = answers %>%
+  select(ParentId) %>%
+  left_join(., questions, by = c("ParentId" = "Id")) %>%
+  select(Title) %>%
+  mutate(nwords_title = str_length(Title)) %>%
+  select(nwords_title) %>%
+  cbind(features,.)
+  
+
+
+### from body of text
+
+
+  
+
+
+
+  
+  
+```
+
+
+Features derived from answers
+
+```{r}
+#Days since a beginning of 2008
+features = answers %>%
+  mutate(answer_time = CreationDate - lubridate::ymd_hms("2008-01-01 00:00:00")) %>%
+  select(answer_time) %>%
+  mutate(answer_time = as.numeric(answer_time)) %>%
+  cbind(features,.)
+
+# packages used
+```
+
+
+Features derived from tags
+
+```{r}
+
+```
+
+
+Save result
+```{r}
+save(features, file = "../../project_data/features.RData")
+```
+
