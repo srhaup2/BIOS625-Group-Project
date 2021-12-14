@@ -348,6 +348,8 @@ features = answers %>%
 bold = c("<b>","<strong>")
 bold_cat = paste(bold, collapse = "|")
 
+
+
 features = answers %>%
   select(Body) %>% 
   mutate(Body = paste0(" ", Body, " ")) %>%
