@@ -1,0 +1,47 @@
+---
+title: "Model Fitting and Evaluation"
+author: "Frank Ockerman"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+
+```{r, setup}
+if(!require(pacman)){install.packages(pacman)}
+p_load(data.table,
+       ggplot2,
+       magrittr,
+       parallel)
+ncores <- max(detectCores() - 2, 1)
+```
+
+```{r, load data}
+load("./data/answers_topics.RData")
+load("./data/features.RData")
+load("./data/topics.RData")
+load("./data/sentiment.RData")
+features <- data.table(features)
+topics <- data.table(topics)
+dt_sent <- data.table(dt_sent)
+```
+
+```{r, merge features}
+# mean impute missing values
+topics <- topics[, lapply(.SD, function(topic) {
+  topic[is.na(topic)] <- mean(topic, na.rm = T)
+  return(topic)
+})]
+
+# sort data tables
+setorder(topics, doc_id); setorder(features, answer_id); setorder(dt_sent, id)
+
+# merge data tables
+DT = cbind(features[, .SD, .SDcols = (1:34)[-c(1:3)]],
+           topics[, .SD, .SDcols = (1:12)[-c(1:2)]],
+           dt_sent[, -"id"]
+           )
+
+# rename topic features
+DT$elapsed_time <- as.numeric(DT$elapsed_time)
+names(DT)[names(DT) %in% as.character(1:8)] <- paste0("topic_", names(DT)[names(DT) %in% as.character(1:8)])
+```
