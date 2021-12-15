@@ -1,3 +1,12 @@
+---
+title: "Coherence Scores"
+author: "Selena Scott"
+date: "12/15/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
 library (dplyr)
 library (stringr)
 library (tm)
@@ -7,10 +16,14 @@ library (textmineR)
 library (ggplot2)
 library (reshape2)
 library(readr)
+```
 
+# Coherence Scores & Plot
+
+```{r}
 load("DTM_preprocessing.dta")
 
-# coherence score
+# coherence scores
 k_list = seq(2, 20, 2)
 dtm = CreateDtm(data$text, doc_names = data$doc_id, ngram_window = c(1, 1))
 tf = TermDocFreq(dtm = dtm)
@@ -33,14 +46,15 @@ model_list = lapply(X = k_list, FUN = function(k) {
 })
 
 # model tuning, choosing the best model
-coherence_mat = data.frame(k = sapply(model_list, function(x) nrow(x$phi)),
-                           coherence = sapply(model_list, function(x) mean(x$coherence)),
-                           stringsAsFactors = FALSE)
-save(coherence_mat, file = "coherence.RData")
+coherence_matrix = data.frame(k = sapply(model_list, function(x) nrow(x$phi)),
+                              coherence = sapply(model_list, function(x) mean(x$coherence)),
+                              stringsAsFactors = FALSE)
+save(coherence_matrix, file = "coherence_preprocessing.dta")
 
-load("coherence.RData")
+load("coherence_preprocessing.dta")
 
-ggplot(data = coherence_mat) +
+# plot
+ggplot(data = coherence_matrix) +
   geom_point(aes(x = k, y = coherence)) +
   geom_line(aes(x = k, y = coherence)) +
   ggtitle("Best Topic by Coherence Score") + 
@@ -48,3 +62,4 @@ ggplot(data = coherence_mat) +
   ylab("Coherence")
 
 ggsave(file = "coherence.png", plot = last_plot(), width = 11, h = 6, units = "in")
+```
