@@ -49,9 +49,9 @@ model_list = lapply(X = k_list, FUN = function(k) {
 coherence_matrix = data.frame(k = sapply(model_list, function(x) nrow(x$phi)),
                               coherence = sapply(model_list, function(x) mean(x$coherence)),
                               stringsAsFactors = FALSE)
-save(coherence_matrix, file = "coherence_preprocessing.dta")
+save(coherence_matrix, file = "preprocessing/coherence_preprocessing.dta")
 
-load("coherence_preprocessing.dta")
+load("preprocessing/coherence_preprocessing.dta")
 
 # plot
 ggplot(data = coherence_matrix) +
@@ -61,5 +61,5 @@ ggplot(data = coherence_matrix) +
   scale_x_continuous(breaks = seq(1, 50, 2)) +
   ylab("Coherence")
 
-ggsave(file = "coherence.png", plot = last_plot(), width = 11, h = 6, units = "in")
+ggsave(file = "plots/coherence.png", plot = last_plot(), width = 11, h = 6, units = "in")
 ```
