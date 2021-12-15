@@ -11,7 +11,10 @@ if(!require(pacman)){install.packages(pacman)}
 p_load(data.table,
        ggplot2,
        magrittr,
-       parallel)
+       parallel,
+       doMC,
+       pROC,
+       glmnet)
 ncores <- max(detectCores() - 2, 1)
 ```
 
@@ -44,4 +47,52 @@ DT = cbind(features[, .SD, .SDcols = (1:34)[-c(1:3)]],
 # rename topic features
 DT$elapsed_time <- as.numeric(DT$elapsed_time)
 names(DT)[names(DT) %in% as.character(1:8)] <- paste0("topic_", names(DT)[names(DT) %in% as.character(1:8)])
+```
+
+```{r, model data}
+# covariate matrix
+x <- DT[, -c(1:2)] %>% as.matrix()
+
+# test/train split
+train_id <- sample(1:nrow(DT), size = nrow(DT) * 0.7)
+x.train <- x[train_id,]
+x.test <- x[-train_id,]
+y.acc <- DT[, IsAcceptedAnswer] %>% as.matrix()
+y.acc.train <- y.acc[train_id]
+y.acc.test <- y.acc[-train_id]
+y.score <- DT[, answer_score]
+y.score[y.score > 30] <- 30 # truncate scores
+y.score <- (y.score - mean(y.score)) / sd(y.score) # normalize
+y.score.train <- y.score[train_id]
+y.score.test <- y.score[-train_id]
+```
+
+```{r, acceptance model}
+# uncomment below to run binomial lasso for acceptance
+#doMC::registerDoMC(ncores)
+#mod.acc.cv <- cv.glmnet(x = x.train, y = y.acc.train, folds = 10, trace.it = T,
+#                        family = binomial,alpha = 1, parallel = T)
+#save(mod.acc.cv, file = "data/mod.acc.cv.RData")
+load("data/mod.acc.cv.RData")
+```
+
+```{r, acceptance auc}
+pred.acc <- predict(mod.acc.cv, newx = x.test, s = "lambda.min")
+pred.acc <- exp(pred.acc) / (1 + exp(pred.acc)) %>% as.vector()
+y.acc %<>% as.vector()
+auc(predictor = pred.acc, response = y.acc.test)
+```
+
+```{r, score}
+# uncomment below to run guassian lasso for score
+#doMC::registerDoMC(ncores)
+#mod.score.cv <- cv.glmnet(x = x.train, y = y.score.train, folds = 10, trace.it = T,
+#                        family = gaussian, alpha = 1, parallel = T)
+
+#save(mod.score.cv, file = "data/mod.score.cv.RData")
+load("data/mod.score.cv.RData")
+```
+
+```{r}
+pred.score <- predict(mod.score.cv, newx = x.test, newy = y.score.test, s = "lambda.min")
 ```
