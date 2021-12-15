@@ -1,0 +1,52 @@
+---
+title: "Sentiment Analysis"
+author: "Frank Ockerman"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r, setup}
+if(!require(pacman)){install.packages(pacman)}
+p_load(data.table,
+       ggplot2,
+       magrittr,
+       sentimentr,
+       parallel)
+ncores <- max(detectCores() - 2, 1)
+```
+
+```{r, load data}
+load("./data/answers_topics.RData")
+```
+
+## Analyze Sentiment
+
+```{r, sentiment}
+# Split data for parallelization
+s_ind <- seq(1, nrow(data), length = ncores + 1) %>% round()
+e_ind <- s_ind[2:(ncores + 1)] - 1
+e_ind[length(e_ind)] <- nrow(data)
+s_ind <- s_ind[-(ncores + 1)]
+
+# Obtain sentences
+sentences <- mclapply(1:ncores, function(i) get_sentences(data$clean_text[s_ind[i]:e_ind[i]]), mc.cores = ncores)
+
+# Perform sentiment analysis
+sent_score <- mclapply(1:ncores, function(i) sentiment(sentences[[i]])$sentiment, mc.cores = ncores) %>% unlist()
+
+dt_sent <- data.frame(id = data$doc_id,
+                      sentiment = sent_score)
+# Save data
+save(dt_sent, file = "./data/sentiment.RData")
+```
+
+## Assessing Significance
+
+```{r, acceptance}
+load("./data/sentiment.RData")
+t.test(data$IsAcceptedAnswer, dt_sent$sentiment)
+```
+
+```{r, score}
+t.test(data$Score, dt_sent$sentiment)
+```
