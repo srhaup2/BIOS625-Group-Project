@@ -58,8 +58,8 @@ ggplot(data = coherence_matrix) +
   geom_point(aes(x = k, y = coherence)) +
   geom_line(aes(x = k, y = coherence)) +
   ggtitle("Best Topic by Coherence Score") + 
-  scale_x_continuous(breaks = seq(1, 50, 2)) +
+  scale_x_continuous(breaks = seq(2, 20, 2)) +
   ylab("Coherence")
 
-ggsave(file = "plots/coherence.png", plot = last_plot(), width = 11, h = 6, units = "in")
+ggsave(file = "plots/coherence.png", plot = last_plot(), width = 10, h = 6, units = "in")
 ```

@@ -17,6 +17,7 @@ library (ggplot2)
 library (reshape2)
 library (tidytext)
 library(readr)
+library(viridis)
 ```
 
 # Topic Modeling
@@ -29,7 +30,7 @@ data = read_csv("../Answers.csv")
 # first column has to be named "doc_id", second column has to be named "text"
 data$doc_id = data$Id
 data$text = data$Body
-data = data[,c(8, 9, 2:6)]
+data = data[, c(8, 9, 2:6)]
 
 # make a corpus (data structure for text data, need it to be in this form to make a document-term matrix)
 corpus = tm::Corpus(DataframeSource(as.data.frame(data)))
@@ -89,8 +90,6 @@ topicNames$topic_name = c("function definitions and calls",
                           "lists and variables",
                           "plots and figures",
                           "data frames and matrices")
-  
-kable(topicNames)
 ```
 
 ## 3) Add Topics to Data
@@ -126,4 +125,77 @@ topics = data[, c(1, 8:18)]
 # save data frames
 save(topics, file = "data/topics.RData")
 #save(data, file = "data/answers_topics.RData")
+```
+
+## 4) Plot
+```{r}
+load("data/topics.RData")
+
+# subset of observations
+topics_complete = topics[complete.cases(topics),]
+topics_subset = topics_complete[1:50,]
+
+# rename topic proportion columns
+colnames(topics_subset)[3:10] = topicNames$topic_name
+
+# long format
+topics_long = melt(topics_subset, id.vars = "doc_id",
+                   measure.vars = topicNames$topic_name,
+                   variable.name = "topic_character",
+                   value.name = "topic_proportion")
+
+topics_long$topic_numeric = as.numeric(topics_long$topic_character)
+topics_long = topics_long[order(topics_long$doc_id, topics_long$topic_numeric),]
+
+# prepare data frame for plot
+topics_long = topics_long[, c(1, 4, 2, 3)]
+topics_long$doc_id = as.factor(topics_long$doc_id)
+
+# plot
+## color scheme (1)
+ggplot(topics_long, aes(x = doc_id, y = topic_proportion, fill = topic_character)) + 
+  geom_bar(stat = "identity") +
+  labs(x = "Answer", y = "Proportion") +
+  scale_fill_discrete(name = "Topic") +
+  scale_x_discrete(labels = NULL) +
+  theme(plot.title = element_text(size = 12),
+        panel.background = element_blank(),
+        panel.border = element_rect(colour = "black", fill = NA, size = 0.5),
+        panel.grid = element_line(color = rgb(235, 235, 235, 100, maxColorValue = 255)))
+
+ggsave(file = "plots/topics.png", plot = last_plot(), width = 10, height = 6, units = "in")
+
+## color scheme (2)
+ggplot(topics_long, aes(x = doc_id, y = topic_proportion, fill = topic_character)) + 
+  geom_bar(stat = "identity") +
+  labs(x = "Answer", y = "Proportion") +
+  scale_fill_viridis_d(option = "mako", direction = -1, name = "Topic") +
+  scale_x_discrete(labels = NULL) +
+  theme(plot.title = element_text(size = 12),
+        panel.background = element_blank(),
+        panel.border = element_rect(colour = "black", fill = NA, size = 0.5),
+        panel.grid = element_line(color = rgb(235, 235, 235, 100, maxColorValue = 255)))
+
+ggsave(file = "plots/topics.png", plot = last_plot(), width = 10, height = 6, units = "in")
+```
+
+## 5) Table
+```{r}
+# topics and terms data frame
+topics_df = topicNames[, c(2, 1)]
+rownames(topics_df) = 1:8
+colnames(topics_df) = c("Topic", "Terms")
+
+# clean up terms
+#terms(topicModel, 20)
+topics_df$Terms[1] = "function code call return object argument the error result method pass defin loop oper assign"
+topics_df$Terms[3] = "packag work file problem test run version read instal user check comment sourc load find"
+topics_df$Terms[4] = "true fals vector functionx element length null sep you this here solut result fun collaps"
+topics_df$Terms[5] = "you class output if charact string match option replac remov numer convert input this or"
+topics_df$Terms[7] = "plot imag line descript add label point size text here color set you fill chang"
+
+# table
+kbl(topics_df, booktabs = T, linesep = "") %>%
+  collapse_rows(columns = 1, latex_hline = "major", valign = "top") %>%
+  kable_styling(full_width = T)
 ```
