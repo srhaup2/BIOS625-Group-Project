@@ -54,6 +54,7 @@ names(DT)[names(DT) %in% as.character(1:8)] <- paste0("topic_", names(DT)[names(
 x <- DT[, -c(1:2)] %>% as.matrix()
 
 # test/train split
+set.seed(11351235)
 train_id <- sample(1:nrow(DT), size = nrow(DT) * 0.7)
 x.train <- x[train_id,]
 x.test <- x[-train_id,]
@@ -62,13 +63,14 @@ y.acc.train <- y.acc[train_id]
 y.acc.test <- y.acc[-train_id]
 y.score <- DT[, answer_score]
 y.score[y.score > 30] <- 30 # truncate scores
-y.score <- (y.score - mean(y.score)) / sd(y.score) # normalize
+#y.score <- (y.score - mean(y.score)) / sd(y.score) # normalize
 y.score.train <- y.score[train_id]
 y.score.test <- y.score[-train_id]
 ```
 
 ```{r, acceptance model}
 # uncomment below to run binomial lasso for acceptance
+#set.seed(1234213)
 #doMC::registerDoMC(ncores)
 #mod.acc.cv <- cv.glmnet(x = x.train, y = y.acc.train, folds = 10, trace.it = T,
 #                        family = binomial,alpha = 1, parallel = T)
@@ -76,23 +78,39 @@ y.score.test <- y.score[-train_id]
 load("data/mod.acc.cv.RData")
 ```
 
-```{r, acceptance auc}
+```{r, acceptance auc and ROC}
 pred.acc <- predict(mod.acc.cv, newx = x.test, s = "lambda.min")
 pred.acc <- exp(pred.acc) / (1 + exp(pred.acc)) %>% as.vector()
-y.acc %<>% as.vector()
+y.acc.test %<>% as.vector()
+df.acc <- data.table(pred.acc, y.acc.test)
+setnames(df.acc, c("pred", "resp"))
+rocplot <- ggplot(df.acc, aes(m = pred, d = resp))+ geom_roc(n.cuts=20,labels=FALSE)
+png("../roc.png")
+rocplot + style_roc(theme = theme_grey) + geom_rocci()
+dev.off()
 auc(predictor = pred.acc, response = y.acc.test)
 ```
 
 ```{r, score}
 # uncomment below to run guassian lasso for score
+#set.seed(1347091)
 #doMC::registerDoMC(ncores)
 #mod.score.cv <- cv.glmnet(x = x.train, y = y.score.train, folds = 10, trace.it = T,
 #                        family = gaussian, alpha = 1, parallel = T)
-
 #save(mod.score.cv, file = "data/mod.score.cv.RData")
 load("data/mod.score.cv.RData")
 ```
 
-```{r}
+```{r, score resid vs fitted}
 pred.score <- predict(mod.score.cv, newx = x.test, newy = y.score.test, s = "lambda.min")
+df.score <- data.table(pred.score, y.score.test)
+setnames(df.score, c("pred", "resp"))
+png("../score_resid.png")
+df.score %>% ggplot(aes(x = pred, y = resp - pred)) + geom_point() + xlab("Predicted Score") + ylab("Residual")
+dev.off()
+```
+
+```{r, mae and r^2}
+mean(abs(df.score[, pred - resp])) # mae
+mod.score.cv$glmnet.fit$dev.ratio[which.min(mod.score.cv$cvm)] #r^2
 ```
