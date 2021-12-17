@@ -194,8 +194,12 @@ topics_df$Terms[4] = "true fals vector functionx element length null sep you thi
 topics_df$Terms[5] = "you class output if charact string match option replac remov numer convert input this or"
 topics_df$Terms[7] = "plot imag line descript add label point size text here color set you fill chang"
 
+#save(topics_df, file = "data/terms_table.RData")
+
 # table
-kbl(topics_df, booktabs = T, linesep = "") %>%
+kbl(topics_df,
+    caption = "Top 15 Terms Per Topic",
+    booktabs = T, longtable = T, linesep = "") %>%
   collapse_rows(columns = 1, latex_hline = "major", valign = "top") %>%
   kable_styling(full_width = T)
 ```
