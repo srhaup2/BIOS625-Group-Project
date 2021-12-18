@@ -14,7 +14,8 @@ p_load(data.table,
        parallel,
        doMC,
        pROC,
-       glmnet)
+       glmnet,
+       plotROC)
 ncores <- max(detectCores() - 2, 1)
 ```
 
@@ -85,7 +86,7 @@ y.acc.test %<>% as.vector()
 df.acc <- data.table(pred.acc, y.acc.test)
 setnames(df.acc, c("pred", "resp"))
 rocplot <- ggplot(df.acc, aes(m = pred, d = resp))+ geom_roc(n.cuts=20,labels=FALSE)
-png("../roc.png")
+png("plots/roc.png")
 rocplot + style_roc(theme = theme_grey) + geom_rocci()
 dev.off()
 auc(predictor = pred.acc, response = y.acc.test)
@@ -105,7 +106,7 @@ load("data/mod.score.cv.RData")
 pred.score <- predict(mod.score.cv, newx = x.test, newy = y.score.test, s = "lambda.min")
 df.score <- data.table(pred.score, y.score.test)
 setnames(df.score, c("pred", "resp"))
-png("../score_resid.png")
+png("plots/score_resid.png")
 df.score %>% ggplot(aes(x = pred, y = resp - pred)) + geom_point() + xlab("Predicted Score") + ylab("Residual")
 dev.off()
 ```
