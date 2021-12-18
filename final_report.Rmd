@@ -88,6 +88,10 @@ While our predictive model was unfortunately unsuccessful, we were successfully 
 
 This project could be extended by trying additional predictive modeling techniques, such as tree-based methods (Random Forest and XGBoost) or a Support Vector Machine. It may be the case that a model that can effectively capture nonlinear relationships, such as those mentioned above, would provide much better results. It is also true that both the topics and manually-created features constitute a major data reduction with a large loss of information. There exist deep neural network frameworks, such as convolutional neural networks (CNNs) and transformers, that are capable of taking into account a much larger portion of the information in text data, including spatial structure. We suggest future research focus on these more sophisticated techniques to leverage the rich data contained in the Stack Overflow dataset.
 
+# GitHub Repository
+
+* [https://github.com/selscott/BIOS625-Group-Project.git](https://github.com/selscott/BIOS625-Group-Project.git)
+
 # Contributions
 
 * Spencer: feature engineering, discussion, part of methods
